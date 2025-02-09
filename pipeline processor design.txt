@@ -1,0 +1,80 @@
+[09-02-2025 18:37] Priyanka Hire: `timescale 1ns / 1ps
+
+module pipeline_tb;
+
+    reg clk, rst;
+    pipeline_processor uut (.clk(clk), .rst(rst));
+
+    // Clock Generation
+    always #5 clk = ~clk;
+
+    initial begin
+        // Initialize
+        clk = 0;
+        rst = 1;
+        #10 rst = 0;
+
+        // Run for a few cycles
+        #50 $finish;
+    end
+
+    initial begin
+        $monitor("Time=%0t | R1=%0d | R2=%0d | R3=%0d", $time, uut.register_file[1], uut.register_file[2], uut.register_file[3]);
+    end
+
+endmodule
+[09-02-2025 18:37] Priyanka Hire: `timescale 1ns / 1ps
+
+module pipeline_processor (
+    input clk,
+    input rst
+);
+
+    // Instruction set encoding
+    parameter ADD = 2'b00, SUB = 2'b01, LOAD = 2'b10;
+    
+    // Instruction memory (OpCode, Dest, Src1, Src2/Immediate)
+    reg [7:0] instruction_memory [0:3]; 
+    initial begin
+        instruction_memory[0] = {LOAD, 2'b01, 2'b00, 4'd10}; // Load 10 into R1
+        instruction_memory[1] = {ADD, 2'b10, 2'b01, 4'd5};  // R2 = R1 + 5
+        instruction_memory[2] = {SUB, 2'b11, 2'b10, 4'd3};  // R3 = R2 - 3
+    end
+
+    // Registers and memory
+    reg [7:0] register_file [0:3];
+    
+    // Pipeline registers
+    reg [7:0] IF_ID, ID_EX, EX_WB;
+    
+    integer i;
+    
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            for (i = 0; i < 4; i = i + 1) 
+                register_file[i] <= 0;
+                
+            IF_ID <= 0;
+            ID_EX <= 0;
+            EX_WB <= 0;
+        end else begin
+            // Fetch
+            IF_ID <= instruction_memory[0];
+
+            // Decode
+            ID_EX <= IF_ID;
+
+            // Execute
+            case (ID_EX[7:6])
+                ADD: EX_WB <= {ID_EX[7:6], ID_EX[5:4], register_file[ID_EX[3:2]] + ID_EX[1:0]};
+                SUB: EX_WB <= {ID_EX[7:6], ID_EX[5:4], register_file[ID_EX[3:2]] - ID_EX[1:0]};
+                LOAD: EX_WB <= {ID_EX[7:6], ID_EX[5:4], ID_EX[1:0]};
+            endcase
+
+            // Write Back
+            register_file[EX_WB[5:4]] <= EX_WB[3:0];
+
+        end
+    end
+
+endmodule
